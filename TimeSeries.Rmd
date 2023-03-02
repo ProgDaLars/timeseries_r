@@ -1,0 +1,158 @@
+---
+title: "Figma Page views (TimeSeries) with R"
+author: "Salami Famous (salamifamous@gmail.com)"
+date: "2023-01-15"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## loading useful libraries
+```{r include = F} 
+# code block checking working directory and loading typical libraries
+
+library(ggplot2) # for graph plots
+library(stringr) #for string manipulations
+library(dplyr)   # needed for data manipulations
+library(prophet) # The forecast library
+library(lubridate)
+library(textshape)
+library(forecast)
+library(melt)
+library(reshape)
+library(tidyverse)
+theme_set(theme_classic())
+```
+
+```{r}
+#clear environment
+rm(list=ls())
+```
+
+```{r}
+#set working directory
+setwd(getwd())
+```
+
+# Task (Page views prediction)
+
+```{r}
+#Reading the data file
+figmadata <- read.csv("data/figma-views-20220101-20220823.csv", stringsAsFactors = T)
+
+```
+
+## Transforming the 'Date' column to standard date format
+```{r}
+#analyse the data
+
+figmadata$Date = as.Date(figmadata$Date,format="%m/%d/%Y")
+str(figmadata)
+
+```
+```{r}
+# Parse date column, set the date column as index
+
+figmadata <- mutate (
+figmadata,
+date = ymd_hms(figmadata$Date) # parse date column using lubridate ymd_hms function
+)
+
+```
+```{r}
+figmadata <- mutate (
+figmadata,
+ds = figmadata$Date,  # Create new ds column from date using mutate
+y = figmadata$Pageviews   # Create new y column from value using mutate
+)
+```
+## Analysis of the historical data using simple plot
+```{r}
+#ggplot(data = figmadata, aes(x = Date, y = Pageviews)) + geom_boxplot()
+
+ggplot(data = figmadata, aes(x = Date, y = Pageviews)) + geom_line(color = "#00AFBB", size = 1, na.rm = TRUE) + theme(axis.text.x = element_text(angle = 90))
+
+
+# Allow Default X Axis Labels
+# Allow Default X Axis Labels
+ggplot(figmadata, aes(x=Date, group = 1)) + 
+  geom_line(aes(y=Pageviews, group = 1), na.rm = TRUE) + 
+  labs(title="Time Series Chart", 
+       subtitle="Daily page views from Figma Dataset", 
+       caption="Source: Figma", 
+       y="Page views")
+
+```
+
+## We are ready to fit a model to the historical data
+```{r, echo=FALSE}
+#figmadata_clean = figmadata[!is.na(figmadata)]
+
+tmodel <- prophet(figmadata,yearly.seasonality = "auto", daily.seasonality = "auto", seasonality.prior.scale=0.9)
+
+```
+```{r}
+#date range from now till middle of next year
+
+date_from<-as.Date("2023-01-15")
+date_to<-as.Date("2024-06-30")
+
+daterange = seq(from = date_from, to = date_to, by = 'day')
+predDuration = as.numeric(length(daterange)) #533
+originalDuration = as.numeric(count(figmadata))
+totDuration = as.numeric((originalDuration + predDuration - 94))
+
+```
+
+## Prediction fo rfuture dates
+```{r}
+future <- make_future_dataframe(tmodel, periods = totDuration)
+```
+
+## Model fitting
+```{r}
+forecast <- predict(tmodel, future)
+```
+
+```{r}
+
+pred_forecast = tail(forecast, predDuration)
+pred_forecastt = tail(forecast, predDuration)
+
+tail(pred_forecast)
+
+```
+
+
+## Combined Graph of historical and predicted data. The historical data is shown in dots with the predicted views represented in line graph
+
+```{r}
+plot(tmodel, pred_forecast)
+```
+
+
+
+
+## Graph showing trend of Forecast (predicted) views, see below
+```{r}
+prophet_plot_components(tmodel, pred_forecast)
+```
+
+Unlike the Python version where I set DAILY SENSATIONALITY of the forecast to TRUE, here, I set it to default, that is, the forecast library takes decision on its own. This is why we have just TWO graphs above as against three.
+
+I need to plot this graph to show the trend or progression of the page views monthly and weekly
+We can see how the trend (page views) behaves, rising and falling depending on the vi
+Graph 1 - Shows the predicted rise in views from the beginning of 2023 and peaks to 2
+Graph 2 - Mondays to Thursdays show higher predicted page views while it declines on 
+
+# '
+
+## Dotplot showing the progression trend for predicted page views, see below
+```{r}
+ggplot(data = pred_forecast, aes(x = ds, y = yhat, col = yhat)) + geom_point()
+
+```
